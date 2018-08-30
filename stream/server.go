@@ -5,6 +5,7 @@ import (
   "net"
   "sync"
   "errors"
+  "github.com/rnburn/stream-satellite/egresspb"
 )
 
 type Server struct {
@@ -49,6 +50,29 @@ func (server *Server) Serve(listener net.Listener) error {
 }
 
 func (server *Server) handleConnection(connection net.Conn) {
+  session := NewSession(connection)
+  err := session.ReadUntilNextMessage()
+  if err != nil {
+    // TODO: Check for EOF? Log other errors?
+    return
+  }
+  initialization := &egresspb.StreamInitialization{}
+  err = session.ConsumeMessage(initialization)
+  if err != nil {
+    return
+  }
+  for {
+    err = session.ReadUntilNextMessage()
+    if err != nil {
+      // TODO: Check for EOF? Log other errors?
+      return
+    }
+    span := &egresspb.Span{}
+    err = session.ConsumeMessage(span)
+    if err != nil {
+      return
+    }
+  }
 }
 
 func (server *Server) Stop() {

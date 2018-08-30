@@ -1,4 +1,4 @@
-package circlebuffer
+package stream
 
 // import (
 //   "fmt"

@@ -1,4 +1,4 @@
-package streamsession
+package stream
 
 import (
   "github.com/rnburn/stream-satellite/circlebuffer"

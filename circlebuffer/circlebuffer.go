@@ -1,8 +1,8 @@
 package circlebuffer
 
-import (
-  "fmt"
-)
+// import (
+//   "fmt"
+// )
 
 func min(x, y int64) int64 {
     if x < y {
@@ -17,14 +17,14 @@ type CircleBuffer struct {
   tail int64
 }
 
-func NewCircleBuffer(capacity int64) (*CircleBuffer, error) {
-  if capacity <= 0 {
-    return nil, fmt.Errorf("Capacity must be positive")
-  }
+func NewCircleBuffer(capacity int64) *CircleBuffer {
+  // if capacity <= 0 {
+  //   return nil, fmt.Errorf("Capacity must be positive")
+  // }
   result := &CircleBuffer {
     data: make([]byte, capacity),
   }
-  return result, nil
+  return result
 }
 
 func (circleBuffer *CircleBuffer) Capacity() int64 {

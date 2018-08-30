@@ -1,35 +1,58 @@
 package stream
 
 import (
-  "github.com/rnburn/stream-satellite/circlebuffer"
   "net"
+  "github.com/golang/protobuf/proto"
 )
 
 type Session struct {
   connection net.Conn
   requireHeader bool
   requiredSize int
-  buffer *circlebuffer.CircleBuffer
+  buffer *CircleBuffer
 }
 
 func NewSession(connection net.Conn) *Session {
   result := &Session{
     connection: connection,
     requireHeader: true,
-    buffer: circlebuffer.NewCircleBuffer(1024*10),
+    requiredSize: PacketHeaderSize,
+    buffer: NewCircleBuffer(1024*10),
   }
   return result
 }
 
 func (session *Session) ReadUntilNextMessage() error {
-  return nil
+  for {
+    if session.checkForNextMessage() {
+      return nil
+    }
+    err := session.doRead()
+    if err != nil {
+      return err
+    }
+  }
 }
 
-func (session *Session) ConsumeHeader() {
+func (session *Session) consumeHeader() {
+  header := DeserializePacketHeader(session.buffer.Peek(PacketHeaderSize))
+  session.buffer.Consume(PacketHeaderSize)
+  session.requireHeader = false
+  session.requiredSize = int(header.BodySize)
+  // if session.requiredSize > session.buffer.Capacity() - 1 {
+    // TODO: Error
+  // }
 }
 
-func (session *Session) ConsumeMessage() bool {
-  return false
+func (session *Session) ConsumeMessage(message proto.Message) error {
+  // if session.requireHeader || session.buffer.Size() < session.requiredSize {
+    // error
+  // }
+  err := proto.Unmarshal(session.buffer.Peek(int64(session.requiredSize)), message)
+  session.buffer.Consume(int64(session.requiredSize))
+  session.requireHeader = true
+  session.requiredSize = PacketHeaderSize
+  return err
 }
 
 func (session *Session) doRead() error {
@@ -41,15 +64,12 @@ func (session *Session) doRead() error {
   return nil
 }
 
-func (session *Session) consumeHeader() {
-}
-
 func (session *Session) checkForNextMessage() bool {
   if session.requireHeader {
     if int(session.buffer.Size()) < session.requiredSize {
       return false
     }
-    session.ConsumeHeader()
+    session.consumeHeader()
   }
   if int(session.buffer.Size()) < session.requiredSize {
     return false

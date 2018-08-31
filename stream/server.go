@@ -1,6 +1,7 @@
 package stream
 
 import (
+  "fmt"
   "io"
   "net"
   "sync"
@@ -69,6 +70,7 @@ func (server *Server) handleConnection(connection net.Conn) {
     }
     span := &egresspb.Span{}
     err = session.ConsumeMessage(span)
+    fmt.Printf("Received span %d\n", span.SpanContext.TraceId)
     if err != nil {
       return
     }

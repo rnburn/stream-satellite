@@ -1,11 +1,13 @@
 package stream
 
 import (
-  "fmt"
+  // "fmt"
   "io"
   "net"
+  "time"
   "sync"
   "errors"
+  "github.com/golang/protobuf/proto"
   "github.com/rnburn/stream-satellite/egresspb"
 )
 
@@ -46,33 +48,64 @@ func (server *Server) Serve(listener net.Listener) error {
       // TODO: Add retry logic?
       return err
     }
-    go server.handleConnection(connection)
+    go handleConnection(connection)
   }
 }
 
-func (server *Server) handleConnection(connection net.Conn) {
+func readMessages(connection net.Conn, messageChan chan proto.Message) {
   session := NewSession(connection)
-  err := session.ReadUntilNextMessage()
-  if err != nil {
-    // TODO: Check for EOF? Log other errors?
-    return
-  }
-  initialization := &egresspb.StreamInitialization{}
-  err = session.ConsumeMessage(initialization)
-  if err != nil {
-    return
-  }
   for {
-    err = session.ReadUntilNextMessage()
-    if err != nil {
-      // TODO: Check for EOF? Log other errors?
-      return
-    }
-    span := &egresspb.Span{}
-    err = session.ConsumeMessage(span)
-    fmt.Printf("Received span %d\n", span.SpanContext.TraceId)
-    if err != nil {
-      return
+    session.ReadMessages(messageChan)
+    // TODO: check and log error messages. Perhaps continue reading.
+    break
+  }
+  close(messageChan)
+}
+
+func processMessage(message proto.Message) {
+}
+
+func flushSpans() {
+}
+
+func makeReport(initMessage *egresspb.StreamInitialization) *egresspb.ReportRequest {
+  return &egresspb.ReportRequest {
+    Reporter: &egresspb.Reporter {
+      ReporterId: initMessage.ReporterId,
+      Tags: initMessage.Tags,
+    },
+  }
+}
+
+func handleConnection(connection net.Conn) {
+  messageChan := make(chan proto.Message)
+  go readMessages(connection, messageChan)
+  initMessage, ok := (<-messageChan).(*egresspb.StreamInitialization)
+  if !ok {
+    // TODO: error invalid initialization
+    return
+  }
+  if initMessage == nil {
+    // TODO: error initializing
+    return
+  }
+  tickerChan := time.Tick(500 * time.Millisecond)
+  report := makeReport(initMessage)
+  for {
+    select {
+    case message := <-messageChan:
+      span, ok := message.(*egresspb.Span)
+      if !ok {
+        // TODO: unexpected message
+        continue
+      }
+      report.Spans = append(report.Spans, span)
+    case <-tickerChan:
+      // flush report
+      if len(report.Spans) == 0 {
+        continue
+      }
+      report = makeReport(initMessage)
     }
   }
 }

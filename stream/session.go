@@ -3,6 +3,7 @@ package stream
 import (
   "net"
   "github.com/golang/protobuf/proto"
+  "github.com/rnburn/stream-satellite/egresspb"
 )
 
 type Session struct {
@@ -31,6 +32,31 @@ func (session *Session) ReadUntilNextMessage() error {
     if err != nil {
       return err
     }
+  }
+}
+
+func (session *Session) ReadMessages(messageChan chan proto.Message) error {
+  err := session.ReadUntilNextMessage()
+  if err != nil {
+    return err
+  }
+  initialization := &egresspb.StreamInitialization{}
+  err = session.ConsumeMessage(initialization)
+  if err != nil {
+    return err
+  }
+  messageChan <- initialization
+  for {
+    err = session.ReadUntilNextMessage()
+    if err != nil {
+      return err
+    }
+    span := &egresspb.Span{}
+    err = session.ConsumeMessage(span)
+    if err != nil {
+      return err
+    }
+    messageChan <- span
   }
 }
 
